@@ -11,6 +11,7 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
 } from 'node:fs';
@@ -55,6 +56,18 @@ const log = (message: string): void => {
   console.log(`\n==> ${message}`);
 };
 
+// The caller's own RENOVATE_* variables would otherwise change the runs.
+const buildEnvironment = (
+  overrides: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv => ({
+  ...Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.startsWith('RENOVATE_'),
+    ),
+  ),
+  ...overrides,
+});
+
 const run = (
   command: string,
   args: readonly string[],
@@ -62,7 +75,7 @@ const run = (
 ): string =>
   execFileSync(command, args, {
     cwd: options.cwd ?? reproDir,
-    env: { ...process.env, ...options.env },
+    env: buildEnvironment(options.env),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
   });
@@ -128,19 +141,25 @@ const runRenovate = (
     );
     return;
   }
-  run('pnpm', ['--silent', 'start'], {
+  // Renovate lower-cases LOG_FILE, which breaks paths with capitals, so its
+  // JSON output is written to the log instead.
+  execFileSync('pnpm', ['--silent', 'start'], {
     cwd: mode.renovateClone,
-    env: {
+    env: buildEnvironment({
       REPRO_RUN: String(renovateRun),
       RENOVATE_CONFIG_FILE: join(reproDir, 'config.js'),
       RENOVATE_GERRIT_PASSWORD: renovatePassword,
       GERRIT_URL: `${gerrit}/`,
-      LOG_LEVEL: 'info',
-      LOG_FILE: join(reproDir, 'logs', `${name}.log`),
-      LOG_FILE_LEVEL: 'debug',
+      LOG_LEVEL: 'debug',
+      LOG_FORMAT: 'json',
       REPRO_GIT_TRACE_PACKET: join(reproDir, 'logs', `${name}-packet.log`),
       RENOVATE_BASE_DIR: join(work, `renovate-run${renovateRun}`),
-    },
+    }),
+    stdio: [
+      'ignore',
+      openSync(join(reproDir, 'logs', `${name}.log`), 'w'),
+      'inherit',
+    ],
   });
 };
 
@@ -223,6 +242,8 @@ const createProject = async (work: string): Promise<void> => {
       'user.name=Administrator',
       '-c',
       'user.email=admin@example.com',
+      '-c',
+      'commit.gpgsign=false',
       'commit',
       '--quiet',
       '-m',
@@ -270,11 +291,24 @@ const printOutcome = (label: string): void => {
         entry.msg,
       ),
     );
+  if (entries.length === 0) {
+    throw new Error(
+      `No push outcome in ${logName}: Renovate stopped before pushing, see that log`,
+    );
+  }
   for (const entry of entries) {
     const unpackError = entry.err?.message?.match(/remote unpack failed: [^\n]*/);
     const suffix = unpackError ? ` (${unpackError[0]})` : '';
     console.log(`  ${entry.branch}: ${entry.msg}${suffix}`);
   }
+  const rejectedPushCount = entries
+    .filter((entry) => entry.msg === 'Pull request creation error')
+    .filter((entry) => entry.err?.message?.includes('Missing tree')).length;
+  if (rejectedPushCount > 0) {
+    log(`Reproduced: ${rejectedPushCount} pushes rejected with "Missing tree"`);
+    return;
+  }
+  log('Not reproduced: no push was rejected with "Missing tree"');
 };
 
 const mode = parseMode(process.argv.slice(2));
@@ -289,8 +323,7 @@ try {
   runRenovate(mode, label, 1, renovatePassword, work);
   await printOpenChanges();
 
-  log('Advancing master by two commits (B)');
-  moveMaster();
+  log('Advancing master by one commit (B)');
   moveMaster();
 
   runRenovate(mode, label, 2, renovatePassword, work);

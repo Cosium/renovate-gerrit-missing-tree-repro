@@ -26,6 +26,8 @@ try {
     'user.name=Administrator',
     '-c',
     'user.email=admin@example.com',
+    '-c',
+    'commit.gpgsign=false',
     'commit',
     '--quiet',
     '-m',
