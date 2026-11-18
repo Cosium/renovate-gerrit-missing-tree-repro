@@ -38,13 +38,14 @@ parent B, a boundary commit whose tree JGit accepts.
 
 ## Reproduction
 
-Prerequisites: Docker with Compose v2, bash, git, curl, jq. Port 8080 on
-localhost must be free (or set `GERRIT_PORT`). To run Renovate from source,
-also a Renovate checkout with its dependencies installed (`pnpm install`).
+Prerequisites: Docker with Compose v2, git, Node.js 24 or later (it runs the
+TypeScript scripts directly). Port 8080 on localhost must be free (or set
+`GERRIT_PORT`). To run Renovate from source, also a Renovate checkout with its
+dependencies installed (`pnpm install`).
 
 ```sh
-scripts/run.sh released                      # renovate/renovate:44.249.2
-scripts/run.sh source ~/src/renovate         # any Renovate checkout, via pnpm start
+node scripts/run.ts released                 # renovate/renovate:44.249.2
+node scripts/run.ts source ~/src/renovate    # any Renovate checkout, via pnpm start
 docker compose down -v                       # clean up
 ```
 
@@ -59,13 +60,15 @@ fresh Gerrit 3.14.6 (development auth, default `admin`/`secret`) and then:
 4. Renovate run 2 processes the three other updates with
    `prConcurrentLimit: 2`, so it may create one more change. The `ms` update
    goes first (`prPriority`) and has a post-upgrade task,
-   [`scripts/move-master.sh`](scripts/move-master.sh), that pushes a commit to
+   [`scripts/move-master.ts`](scripts/move-master.ts), that pushes a commit to
    master from a separate clone: master moves after Renovate's fetch and before
    its push, every time.
 
 Renovate logs (debug) and git packet traces go to `logs/`.
 
-### Expected output with Renovate 44.249.2
+## Current behavior
+
+Output with Renovate 44.249.2:
 
 ```
 ==> Creating project missing-tree-demo with an outdated package.json (commit A)
@@ -97,7 +100,10 @@ git< unpack error Missing tree 7684b2c10b2c1275ee47f74d442b2e112e32f12d
 git< ng refs/for/master n/a (unpacker error)
 ```
 
-### Expected output with the fix
+## Expected behavior
+
+Renovate creates the change, then stops at the limit. Output with the proposed
+fix:
 
 ```
 ==> Open changes of renovate
@@ -116,5 +122,5 @@ git< ng refs/for/master n/a (unpacker error)
 - [`docker-compose.yml`](docker-compose.yml): Gerrit, and the released Renovate image (profile `renovate`)
 - [`config.js`](config.js): self-hosted Renovate configuration for both runs
 - [`project/`](project): content of the demo project's first commit
-- [`scripts/run.sh`](scripts/run.sh): the whole scenario, from a clean Gerrit
-- [`scripts/move-master.sh`](scripts/move-master.sh): pushes a commit to master from a separate clone
+- [`scripts/run.ts`](scripts/run.ts): the whole scenario, from a clean Gerrit
+- [`scripts/move-master.ts`](scripts/move-master.ts): pushes a commit to master from a separate clone

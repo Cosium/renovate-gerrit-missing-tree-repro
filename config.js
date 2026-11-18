@@ -1,5 +1,5 @@
 // Self-hosted Renovate configuration shared by the Docker image and a
-// Renovate checkout run from source. scripts/run.sh sets the environment.
+// Renovate checkout run from source. scripts/run.ts sets the environment.
 const path = require('node:path');
 
 const gerritUrl = process.env.GERRIT_URL ?? 'http://localhost:8080/';
@@ -20,7 +20,7 @@ module.exports = {
   // stop with "Reached branch limit". A change whose push fails is not counted.
   prHourlyLimit: 0,
   prConcurrentLimit: 2,
-  allowedCommands: ['^bash .*/move-master\\.sh$'],
+  allowedCommands: ['^node .*/move-master\\.ts$'],
   customEnvVariables: {
     MOVE_MASTER_URL: `${gerritUrl.replace('://', '://admin:secret@')}a/${project}`,
     // Git protocol trace of every git command Renovate runs.
@@ -43,7 +43,7 @@ module.exports = {
       matchPackageNames: ['ms'],
       prPriority: 10,
       postUpgradeTasks: {
-        commands: [`bash ${path.join(__dirname, 'scripts', 'move-master.sh')}`],
+        commands: [`node ${path.join(__dirname, 'scripts', 'move-master.ts')}`],
         executionMode: 'branch',
       },
     },

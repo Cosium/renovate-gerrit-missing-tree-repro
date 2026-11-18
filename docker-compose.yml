@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 60
 
-  # Released Renovate. Started on demand by run.sh (profile "renovate").
+  # Released Renovate. Started on demand by run.ts (profile "renovate").
   renovate:
     image: renovate/renovate:44.249.2
     profiles: [renovate]
