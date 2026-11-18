@@ -1,0 +1,11 @@
+{
+  "name": "missing-tree-demo",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "is-number": "6.0.0",
+    "ms": "2.0.0",
+    "left-pad": "1.2.0",
+    "escape-string-regexp": "4.0.0"
+  }
+}
